@@ -5,9 +5,9 @@
 {                                                                              }
 {------------------------------------------------------------------------------}
 {                                                                              }
-{ Unit owner:    EkwoTECH GmbH Friedrichshafen                                 }
+{ Unit owner:    EkwoTECH GmbH, Friedrichshafen                                 }
 { Created:       March 29, 2020                                                }
-{ Last modified: April 04, 2020                                                }
+{ Last modified: April 05, 2020                                                }
 {                                                                              }
 {------------------------------------------------------------------------------}
 unit ET_LookupEdit;
@@ -30,25 +30,27 @@ done:
 - !!!!! beim schnell hinterinander löschen, bricht kaputt
 }
 const
-  SL_MAX      = 25; // max. Fundstellen (Höhe der "ComboBox")
-  ITEM_HEIGHT = 17; // 2do: ppi?
+  SL_MAX          = 25; // max. Fundstellen (Höhe der "ComboBox")
+  ITEM_HEIGHT     = 17; // 2do: ppi?
+  SCROLLBAR_WIDTH = 10;
+
 
 type
 { Scrollbar, the moveable area is smaller than the full Scrollbar area, due to margin
 
-            /    Margin                         Margin
+            /        Margin                     Margin
             |               /                   a +---+  YMin
             |               |                   r |   |
             |               |                   g |   |
-    Rect    |               |              /    i +---+  Y1
-            |    Height     |    Height    |    n | + |  YGrab [Pixel]
-            |      Mov      |      Bar     |      |   |
+       Rect |               |              /    i +---+  Y1
+            |        Height |       Height |    n | + |  YGrab [Pixel]
+            |          Mov  |         Bar  |      |   |
             |               |              \      +---+
             |               |                     |   |
             |               |                     |   |
             |               |                     |   |
             |               \                     +---+  YMax
-            \    Margin
+            \        Margin
 }
   TScrollbarMode = (scr_List, scr_ScrollBar);
   TET_Scrollbar = class
@@ -78,7 +80,6 @@ type
 
   TET_LookupEdit = class(TEdit)
   private
-///    bDontchange: Boolean;
     F_SL: TStrings;
     F_SL_tmpl: TStrings; // Formatier-Anweisung
 
@@ -91,7 +92,7 @@ type
     F_MaxHeight: Word; // 2020-03-29, we need this, as we do not have the ControlCanvas solution yet (s. VCL-TCustomComboBox)
     F_ItemsVisible: Word;
     F_FirstPainted: Word;
-    F_Selected:     Word; // selected in thr StringList
+    F_Selected:     Word; // selected in the List
     F_SelectedGUI:  Word; // selected on the Canvas
 
     F_MouseDown: Boolean;
@@ -106,9 +107,8 @@ type
     _OldProc: TWndMethod;
     procedure WndMessage(var msg: TMessage);
 
-    function find_SL: Word;     // Anzahl gef.
+    function find_SL: Word; // returns number of found
   protected
-//    procedure Paint; override;
     procedure set_max_height(max_h: Word);
   public
     constructor Create(Owner: TComponent); override;
@@ -118,7 +118,8 @@ type
     // Text has changed -->
     procedure Change; override;
     // Selection has changed -->
-    procedure Highlight;
+    procedure Paint; // 2do: should this be 'override' ?
+    
     procedure KeyDown(var Key: Word; Shift: TShiftState); override;
     procedure KeyPress(var Key: Char); override;
     procedure DoExit; override;
@@ -212,13 +213,12 @@ constructor TET_LookupEdit.Create(Owner: TComponent); // Owner = TForm
 begin
   Inherited;
 
-///  bDontchange := False;
   F_SL := TStringList.Create;
   F_FirstPainted := 0;
   F_Selected := 0;
   F_SL_tmpl := TStringList.Create;
 
-  F_MaxHeight := 100;
+  F_MaxHeight := 100; // will be overwritten by published property (comes a bit later)
 
   if (csDesigning in ComponentState) then begin
   end else begin
@@ -270,7 +270,7 @@ begin
         F_FirstPainted := F_FirstPainted+1;
      end;
      F_Scrollbar.set_Y1(F_FirstPainted);
-     Change(); // 2so: use Paint()
+     Paint();
 
 {
      if wc = nil then
@@ -331,62 +331,13 @@ begin
   end;
 end;
 
-
 procedure TET_LookupEdit.Change;
-var i: Word;
-  j: Byte;
-  a_L: array[0..(6-1)] of String; // typ;id;Bezeichnung
-  x: Word;
-  pt,ptPar,ptSelf: TPoint;
-
-  procedure Paint_BG; // optimieren, nur aufrufen, wenn selected
-  var aCols: Array[0..1,0..1] of TColor;
-    j: Byte;
-  begin
-     aCols[0][0] := F_col_ComboSelected;   // BG selected
-     aCols[0][1] := clWhite;  // FG
-     aCols[1][0] := clWhite;  // BG
-     aCols[1][1] := clBlack;  // FG
-     if i = F_Selected then
-        j := 0
-     else
-        j := 1;
-     F_Img.Canvas.Brush.Color := aCols[j][0];
-     F_Img.Canvas.FillRect(Rect(0,(i-F_FirstPainted)*ITEM_HEIGHT-1,F_Img.Width,i*ITEM_HEIGHT+ITEM_HEIGHT));
-     F_Img.Canvas.Font.Color := aCols[j][1];
-  end;
-
-  procedure Paint_FG; // print search Term Highlighted e.g. P[ete]r
-  var iPos: Integer; // Position of search term
-    iLen: Byte; // Length of search term
-    aStr: array[0..2] of String;
-    sz:   array[0..1] of TSize;
-  begin
-     iPos := aFndPos[i]; // (i-F_FirstPainted) ?
-     iLen := Length(self.Text);
-
-     F_Img.Canvas.Font.Style := [];
-     F_Img.Canvas.Font.Color := clBlack;
-     aStr[0] := Copy(a_L[j],1,iPos-1);
-     sz[0] := F_Img.Canvas.TextExtent(aStr[0]);
-     F_Img.Canvas.TextOut(x,(i-F_FirstPainted)*ITEM_HEIGHT,aStr[0]);
-
-     F_Img.Canvas.Font.Style := [fsBold];
-     F_Img.Canvas.Font.Color := F_col_SearchTermHighlight;
-     aStr[1] := Copy(a_L[j],iPos,iLen);
-     sz[1] := F_Img.Canvas.TextExtent(aStr[1]); // depending on chosen .Style
-     F_Img.Canvas.TextOut(x+sz[0].cx,(i-F_FirstPainted)*ITEM_HEIGHT,aStr[1]);
-
-     F_Img.Canvas.Font.Style := [];
-     F_Img.Canvas.Font.Color := clBlack;
-     aStr[2] := Copy(a_L[j],iPos+iLen,99);
-     F_Img.Canvas.TextOut(x+sz[0].cx+sz[1].cx,(i-F_FirstPainted)*ITEM_HEIGHT,aStr[2]);
-  end;
-
+var pt,
+  ptPar,
+  ptSelf: TPoint;
 begin
   if not (csDesigning in ComponentState) then
      Assert(self.F_MaxHeight > ITEM_HEIGHT, self.Name + ', Fehler: MaxHeight < 17');
-///  if bDontchange then begin bDontchange := False; Exit; end;
 
   inherited Change;
   if (csDesigning in ComponentState) then Exit; // <-- F_Pnl und f_Img nicht angelegt
@@ -433,34 +384,87 @@ begin
   F_img.Canvas.Brush.Color := clWhite;
   F_img.Canvas.FillRect(Rect(0,0,F_img.Width,F_img.Height));
 
-  if numFnd > 0 then
-     if F_SL.Count > 0 then begin
-        for i := F_FirstPainted to F_FirstPainted + min(numFnd,F_ItemsVisible)-1 do begin
-           Paint_BG();
-           uHelpFunctions.csv_to_sArr(F_SL[aFnd[i]],a_L);
-           j := 0;
-           x := 0;
-           Paint_FG();
+  F_Scrollbar.Init(Rect(F_Img.Width-SCROLLBAR_WIDTH,0,F_Img.Width,F_Img.Height),
+                   5, // margin
+                   numFnd,
+                   F_ItemsVisible);
+
+  Paint();
+
+  Tag := 0;
+end;
+
+procedure TET_LookupEdit.Paint;
+var i: Word;
+  j: Byte;
+  x: Word;
+  a_L: array[0..(6-1)] of String; // typ;id;Bezeichnung
+
+  procedure Paint_BG; // optimieren, nur aufrufen, wenn selected
+  var aCols: Array[0..1,0..1] of TColor;
+    j: Byte;
+  begin
+     aCols[0][0] := F_col_ComboSelected;   // BG selected
+     aCols[0][1] := clWhite;  // FG
+     aCols[1][0] := clWhite;  // BG
+     aCols[1][1] := clBlack;  // FG
+     if i = F_Selected then
+        j := 0
+     else
+        j := 1;
+     F_Img.Canvas.Brush.Color := aCols[j][0];
+     F_Img.Canvas.FillRect(Rect(0,(i-F_FirstPainted)*ITEM_HEIGHT-1,F_Img.Width,i*ITEM_HEIGHT+ITEM_HEIGHT));
+     F_Img.Canvas.Font.Color := aCols[j][1];
+  end;
+
+  procedure Paint_FG; // print search Term Highlighted e.g. P[ete]r
+  var iPos: Integer; // Position of search term
+    iLen: Byte; // Length of search term
+    aStr: array[0..2] of String;
+    sz:   array[0..1] of TSize;
+  begin
+     iPos := aFndPos[i]; // (i-F_FirstPainted) ?
+     iLen := Length(self.Text);
+
+     F_Img.Canvas.Font.Style := [];
+     F_Img.Canvas.Font.Color := clBlack;
+     aStr[0] := Copy(a_L[j],1,iPos-1);
+     sz[0] := F_Img.Canvas.TextExtent(aStr[0]);
+     F_Img.Canvas.TextOut(x,(i-F_FirstPainted)*ITEM_HEIGHT,aStr[0]);
+
+     F_Img.Canvas.Font.Style := [fsBold];
+     F_Img.Canvas.Font.Color := F_col_SearchTermHighlight;
+     aStr[1] := Copy(a_L[j],iPos,iLen);
+     sz[1] := F_Img.Canvas.TextExtent(aStr[1]); // depending on chosen .Style
+     F_Img.Canvas.TextOut(x+sz[0].cx,(i-F_FirstPainted)*ITEM_HEIGHT,aStr[1]);
+
+     F_Img.Canvas.Font.Style := [];
+     F_Img.Canvas.Font.Color := clBlack;
+     aStr[2] := Copy(a_L[j],iPos+iLen,99); // 2do: do properly! (string-length)
+     F_Img.Canvas.TextOut(x+sz[0].cx+sz[1].cx,(i-F_FirstPainted)*ITEM_HEIGHT,aStr[2]);
+  end;
+
+begin
+  // a) paint List
+  if F_ItemsVisible > 0 then
+     if numFnd > 0 then
+        if F_SL.Count > 0 then begin
+           for i := F_FirstPainted to F_FirstPainted + min(numFnd,F_ItemsVisible)-1 do begin
+              Paint_BG();
+              uHelpFunctions.csv_to_sArr(F_SL[aFnd[i]],a_L);
+              j := 0;
+              x := 0;
+              Paint_FG();
+           end;
         end;
-     end;
   F_Pnl.Visible := Length(Text) > 0;
   if Text = Name then
      F_Pnl.Visible := False;
   F_Pnl.BringToFront; // <- wirft einen Fehler
 
-  // ScrollBar, 2do: Init sollte nicht bei jedem hover aufgerufen werden!
-  F_Scrollbar.Init(Rect(F_Img.Width-10,0,F_Img.Width,F_Img.Height), 5, numFnd, F_ItemsVisible);
-  if F_Scrollbar.Mode = scr_Scrollbar then
-     F_FirstPainted := F_Scrollbar.YItem;
-  if (F_maxheight < numFnd*ITEM_HEIGHT) then
-     F_Scrollbar.Paint(F_Img.Canvas);
-
-  Tag := 0;
-end;
-
-procedure TET_LookupEdit.Highlight;
-begin
-  Change(); // 2do: nicht komplett neu zeichnen, sondern nur das vorher und jetzt selektierte!!
+  // b) paint Scrollbar
+  if F_Scrollbar.Mode = scr_Scrollbar then F_FirstPainted := F_Scrollbar.YItem;
+  if (F_maxheight < numFnd*ITEM_HEIGHT) then F_Scrollbar.Paint(F_Img.Canvas);
 end;
 
 procedure TET_LookupEdit.KeyPress(var Key: Char);
@@ -494,7 +498,7 @@ begin
      if F_Selected > 0 then F_Selected := F_Selected - 1;
      if F_Selected < F_FirstPainted then F_FirstPainted := F_FirstPainted - 1;
      F_Scrollbar.set_Y1(F_FirstPainted); // 2do, im Change
-     Change(); // 2do: Highlight();
+     Paint();
      Key := 0; // do not move left/right with up/down Arrow
   end;
   if Key = 40 then begin // Pfeil runter
@@ -503,7 +507,7 @@ begin
         if F_Selected >= F_FirstPainted + F_ItemsVisible then
            F_FirstPainted := F_FirstPainted + 1;
         F_Scrollbar.set_Y1(F_FirstPainted); // 2do, im Change
-        Change(); // 2do: Highlight();
+        Paint();
         Key := 0;
      end;
   end;
@@ -528,8 +532,8 @@ begin
   if (csDesigning in ComponentState) then Exit; // <-- F_Pnl und f_Img nicht angelegt
   if F_Pnl.Visible = True then
      // if we left scrollbar area, but mousebutton still pressed, then continue operating the scrollbar
-     if (X > self.Width-10) or (F_MouseMode = led_mm_ScrollBar) then begin
-     // b) scrollbar
+     if (X > self.Width-SCROLLBAR_WIDTH) or (F_MouseMode = led_mm_ScrollBar) then begin
+     // b) scrollbar --> move up / down
         if F_MouseDown then begin
            if (Y-F_Scrollbar.YGrab < 0) then
               F_Scrollbar.set_Y1_GUI(0)
@@ -537,25 +541,22 @@ begin
               F_Scrollbar.set_Y1_GUI(F_Scrollbar.HeightMov-F_Scrollbar.HeightBar)
            else
               F_Scrollbar.set_Y1_GUI(Y-F_Scrollbar.YGrab);
-           Change();
+           Paint();
         end;
      end else begin
-     // a) items highlighten
+     // a) list of items --> highlight
         if (Y div ITEM_HEIGHT) <> F_SelectedGUI then begin
            F_SelectedGUI := Y div ITEM_HEIGHT;
            F_Selected    := F_FirstPainted + F_SelectedGUI;
-           Change(); // Highlight();
+           Paint();
         end;
      end;
 end;
 
 procedure TET_LookupEdit.F_Img_MouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
-//var h_item: Word;
 begin
-//  if (csDesigning in ComponentState) then Exit; // <-- F_Pnl und f_Img nicht angelegt
-///  bDontchange := True;
-  if X < self.Width-10 then begin
-     // a) items highlighten
+  if X < self.Width-SCROLLBAR_WIDTH then begin
+     // a) mouse over list of items
      F_MouseMode := led_mm_List;
 
      F_SelectedGUI := Y div ITEM_HEIGHT;
@@ -569,7 +570,7 @@ begin
      F_FirstPainted := 0;
      self.SelStart := Length(self.Text);
   end else begin
-     // b) scrollbar
+     // b) mouse over the scrollbar
      F_MouseMode := led_mm_ScrollBar;
 
      if Y > F_Scrollbar.Y1 then
