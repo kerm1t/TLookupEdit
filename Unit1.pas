@@ -20,7 +20,6 @@ type
     procedure FormCreate(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure ComboBox1Change(Sender: TObject);
-    procedure editPfdChange(Sender: TObject);
     procedure Button1Click(Sender: TObject);
   private
     { Private-Deklarationen }
@@ -62,25 +61,16 @@ begin
   // (b) assign full list
   editAdressen.sl.Assign(sl);
   sl.Free;
-
-//  self.Controls[2].BringToFront; // <- Privilegierte Instruktion
 end;
 
 procedure TForm1.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
-//
+  // free stuff etc.
 end;
 
 procedure TForm1.ComboBox1Change(Sender: TObject);
 begin
   ComboBox1.DroppedDown := True;
-end;
-
-procedure TForm1.editPfdChange(Sender: TObject);
-begin
-//  editPfd.F_Pnl.BringToFront;
-//  editPfd.F_Pnl.Parent := self;
-//edit2.SendToBack;
 end;
 
 procedure TForm1.Button1Click(Sender: TObject);
