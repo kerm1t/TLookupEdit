@@ -5,10 +5,10 @@
 The component derives from TEdit. It features a custom painted List and Scrollbar.
 
 ## Caveat
-The Height is limited by MaxHeight property.
+Height is limited by MaxHeight property.
 Future release shall use CustomControl, to allow the list to exceed the parent from.
 
-## setup
+## Structure
 
 
             /        Margin                     Margin
